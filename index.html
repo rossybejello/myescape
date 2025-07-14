@@ -1,0 +1,1864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Secure P2P Chat App</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root {
+      --bg:#f0f2f5;--fg:#1c1e21;--box:#fff;--accent:#007bff;--error:#dc3545;
+      --success:#28a745;--warning:#ffc107;--dialog-bg:rgba(0,0,0,0.6);
+    }
+    [data-theme="dark"] {
+      --bg:#18191A;--fg:#E4E6EB;--box:#242526;--accent:#1a73e8;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:Arial,sans-serif;background:var(--bg);color:var(--fg);
+      display:flex;height:100vh;overflow:hidden;}
+    
+    /* Sidebar */
+    #sidebar{width:260px;background:var(--box);border-right:1px solid #ccc;
+      display:flex;flex-direction:column;}
+    #sidebar .search{padding:.5rem;}
+    #sidebar .search input{width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;}
+    #sidebar .list{flex:1;overflow-y:auto;padding:.5rem;}
+    .item{position:relative;padding:.5rem;margin:.25rem 0;border-radius:4px;cursor:pointer;}
+    .item:hover,.item.active{background:var(--accent);color:#fff;}
+    .item .context-menu{position:absolute;right:8px;top:8px;opacity:0;transition:opacity 0.2s;}
+    .item:hover .context-menu{opacity:1;}
+    .badge{position:absolute;right:8px;top:8px;background:var(--error);color:#fff;
+      border-radius:50%;padding:0 6px;font-size:.75rem;}
+    .preview{font-size:.75rem;color:#666;margin-top:2px;}
+    #sidebar footer{display:flex;gap:.5rem;padding:.5rem;border-top:1px solid #ccc;}
+    footer button{flex:1;padding:.5rem;background:var(--accent);color:#fff;
+      border:none;border-radius:4px;cursor:pointer;}
+    footer button:hover{background:#0056b3;}
+
+    /* Main */
+    #main{flex:1;display:flex;flex-direction:column;}
+    #topbar{display:flex;justify-content:space-between;align-items:center;
+      padding:.5rem 1rem;background:var(--box);border-bottom:1px solid #ccc;}
+    #topbar .title{font-size:1.1rem;}
+    #topbar .status{font-size:.9rem;color:#666;}
+    #topbar .controls button{margin-left:.5rem;padding:.4rem .8rem;
+      background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;}
+    #chat{flex:1;display:flex;flex-direction:column;background:var(--bg);}
+    #msgs{flex:1;overflow-y:auto;padding:1rem;}
+    .msg{margin:.5rem 0;max-width:70%;padding:.5rem;border-radius:8px;
+      background:var(--box);position:relative;}
+    .msg.me{margin-left:auto;background:#d1e7dd;}
+    .msg.error{background:#ffebee;border-left:3px solid var(--error);}
+    .msg .meta{font-size:.75rem;color:#666;}
+    .msg .actions{position:absolute;top:4px;right:4px;opacity:0;transition:opacity 0.2s;}
+    .msg:hover .actions{opacity:1;}
+    .msg .actions button{background:transparent;border:none;color:#999;cursor:pointer;margin-left:4px;}
+    #typing{font-style:italic;padding:.5rem 1rem;color:#666;}
+    #status{padding:.25rem 1rem;background:var(--warning);color:#000;text-align:center;
+      font-size:.85rem;display:none;}
+    #composer{display:flex;gap:.5rem;padding:.5rem 1rem;background:var(--box);
+      border-top:1px solid #ccc;}
+    #composer input[type="text"]{flex:1;padding:.5rem;border:1px solid #ccc;border-radius:4px;}
+    #composer button{padding:.5rem 1rem;background:var(--accent);color:#fff;
+      border:none;border-radius:4px;cursor:pointer;}
+
+    /* Context Menus */
+    .context-menu-popup{position:fixed;background:var(--box);border:1px solid #ccc;
+      border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:1001;display:none;}
+    .context-menu-popup button{display:block;width:100%;padding:.5rem 1rem;
+      text-align:left;border:none;background:transparent;cursor:pointer;}
+    .context-menu-popup button:hover{background:#f5f5f5;}
+
+    /* Dialogs */
+    .dialog-overlay{position:fixed;top:0;left:0;right:0;bottom:0;
+      background:var(--dialog-bg);display:none;justify-content:center;
+      align-items:center;z-index:1000;}
+    .dialog{background:var(--box);padding:1rem;border-radius:8px;width:320px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.2);}
+    .dialog header{font-weight:bold;margin-bottom:1rem;}
+    .form-group{margin-bottom:.75rem;}
+    .form-group label{display:block;margin-bottom:.25rem;}
+    .form-group input,.form-group select,.form-group textarea{width:100%;padding:.4rem;
+      border:1px solid #ccc;border-radius:4px;}
+    .form-group.error input{border-color:var(--error);}
+    .error-text{color:var(--error);font-size:.85rem;margin-top:.25rem;}
+    .actions{text-align:right;margin-top:1rem;}
+    .actions button{margin-left:.5rem;padding:.4rem .8rem;border:none;
+      border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;}
+    .actions button.secondary{background:#6c757d;}
+    .actions button:hover{opacity:0.9;}
+
+    /* Toast notifications */
+    .toast{position:fixed;top:1rem;right:1rem;background:var(--box);
+      border-radius:4px;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.15);
+      z-index:1002;transform:translateX(100%);transition:transform 0.3s;}
+    .toast.show{transform:translateX(0);}
+    .toast.error{border-left:3px solid var(--error);}
+    .toast.success{border-left:3px solid var(--success);}
+    .toast.warning{border-left:3px solid var(--warning);}
+  </style>
+</head>
+<body data-theme="">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="search">
+      <input id="filter" placeholder="Search contacts or rooms..." aria-label="Search">
+    </div>
+    <div class="list" id="contacts"></div>
+    <div class="list" id="rooms"></div>
+    <footer>
+      <button id="addContact" aria-label="Add contact">+ Contact</button>
+      <button id="newRoom" aria-label="New room">+ Room</button>
+    </footer>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+    <div id="topbar">
+      <div>
+        <div class="title" id="currentTarget">Select contact or room</div>
+        <div class="status" id="connectionStatus">Disconnected</div>
+      </div>
+      <div class="controls">
+        <button id="settingsBtn" aria-label="Settings">⚙️</button>
+        <button id="themeBtn" aria-label="Toggle theme">🌙</button>
+        <button id="logoutBtn" aria-label="Logout">🔒</button>
+      </div>
+    </div>
+    <div id="chat">
+      <div id="status"></div>
+      <div id="msgs" role="log" aria-live="polite"></div>
+      <div id="typing" aria-live="polite"></div>
+      <div id="composer">
+        <input type="text" id="inputMsg" placeholder="Type a message..." 
+               aria-label="Message input" maxlength="1000">
+        <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx" style="display:none">
+        <button id="fileBtn" aria-label="Attach file">📎</button>
+        <button id="sendBtn" aria-label="Send message">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Dialog -->
+  <div class="dialog-overlay" id="authDialog" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <header>Register / Login</header>
+      <div class="form-group">
+        <label for="dlgSerial">Serial Code</label>
+        <input id="dlgSerial" readonly placeholder="Generated after registration">
+      </div>
+      <div class="form-group">
+        <label for="dlgName">Username</label>
+        <input id="dlgName" maxlength="50" required>
+        <div class="error-text" id="nameError"></div>
+      </div>
+      <div class="form-group">
+        <label for="dlgPhone">Phone Number</label>
+        <input id="dlgPhone" type="tel" maxlength="20">
+        <div class="error-text" id="phoneError"></div>
+      </div>
+      <div class="form-group">
+        <label for="dlgPassword">Password</label>
+        <input id="dlgPassword" type="password" minlength="6" required>
+        <div class="error-text" id="passwordError"></div>
+      </div>
+      <div class="actions">
+        <button id="dlgLogin">Login</button>
+        <button id="dlgRegister">Register</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Dialog -->
+  <div class="dialog-overlay" id="reportDialog" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <header>Report Message</header>
+      <div class="form-group">
+        <label for="reportReason">Reason</label>
+        <select id="reportReason">
+          <option value="spam">Spam</option>
+          <option value="harassment">Harassment</option>
+          <option value="inappropriate">Inappropriate Content</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="reportDetails">Additional Details</label>
+        <textarea id="reportDetails" rows="3" maxlength="500"></textarea>
+      </div>
+      <div class="actions">
+        <button id="reportSubmit">Submit Report</button>
+        <button id="reportCancel" class="secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Other dialogs for contacts, rooms, settings... -->
+  <div class="dialog-overlay" id="contactDialog" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <header>Add Contact</header>
+      <div class="form-group">
+        <label for="addContactId">Contact Serial Code</label>
+        <input id="addContactId" maxlength="12">
+        <div class="error-text" id="contactError"></div>
+      </div>
+      <div class="actions">
+        <button id="dlgAddContact">Add</button>
+        <button id="dlgCancelContact" class="secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer"></div>
+
+  <!-- Context menu -->
+  <div class="context-menu-popup" id="contextMenu">
+    <button id="blockUser">Block User</button>
+    <button id="muteUser">Mute User</button>
+    <button id="reportUser">Report User</button>
+  </div>
+
+  <script>
+  // Enhanced Error Handling and Logging System
+  class Logger {
+    static levels = { ERROR: 0, WARN: 1, INFO: 2, DEBUG: 3 };
+    static currentLevel = Logger.levels.INFO;
+    
+    static error(message, data = null) {
+      if (this.currentLevel >= this.levels.ERROR) {
+        console.error(`[ERROR] ${message}`, data);
+        this.logToServer('ERROR', message, data);
+      }
+    }
+    
+    static warn(message, data = null) {
+      if (this.currentLevel >= this.levels.WARN) {
+        console.warn(`[WARN] ${message}`, data);
+      }
+    }
+    
+    static info(message, data = null) {
+      if (this.currentLevel >= this.levels.INFO) {
+        console.info(`[INFO] ${message}`, data);
+      }
+    }
+    
+    static debug(message, data = null) {
+      if (this.currentLevel >= this.levels.DEBUG) {
+        console.debug(`[DEBUG] ${message}`, data);
+      }
+    }
+    
+    static logToServer(level, message, data) {
+      // In production, send to error reporting service
+      try {
+        fetch('/api/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ level, message, data, timestamp: Date.now() })
+        }).catch(() => {}); // Fail silently for logging
+      } catch (e) {
+        // Prevent logging errors from breaking the app
+      }
+    }
+  }
+
+  // Custom Error Classes
+  class NetworkError extends Error {
+    constructor(message, statusCode = null) {
+      super(message);
+      this.name = 'NetworkError';
+      this.statusCode = statusCode;
+    }
+  }
+
+  class ValidationError extends Error {
+    constructor(message, field = null) {
+      super(message);
+      this.name = 'ValidationError';
+      this.field = field;
+    }
+  }
+
+  class WebRTCError extends Error {
+    constructor(message, code = null) {
+      super(message);
+      this.name = 'WebRTCError';
+      this.code = code;
+    }
+  }
+
+  // Toast Notification System
+  class NotificationManager {
+    static show(message, type = 'info', duration = 5000) {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      
+      const container = document.getElementById('toastContainer');
+      container.appendChild(toast);
+      
+      // Trigger animation
+      setTimeout(() => toast.classList.add('show'), 100);
+      
+      // Auto remove
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => container.removeChild(toast), 300);
+      }, duration);
+    }
+    
+    static error(message) { this.show(message, 'error'); }
+    static success(message) { this.show(message, 'success'); }
+    static warning(message) { this.show(message, 'warning'); }
+  }
+
+  // Enhanced IndexedDB Wrapper with Error Handling
+  class SecureStorage {
+    constructor(dbName = 'chatApp', version = 1) {
+      this.dbName = dbName;
+      this.version = version;
+      this.db = null;
+    }
+    
+    async init() {
+      return new Promise((resolve, reject) => {
+        try {
+          const request = indexedDB.open(this.dbName, this.version);
+          
+          request.onerror = (event) => {
+            const error = new Error(`IndexedDB error: ${event.target.error?.message || 'Unknown error'}`);
+            Logger.error('IndexedDB open failed', error);
+            reject(error);
+          };
+          
+          request.onblocked = () => {
+            const error = new Error('IndexedDB blocked - please close other tabs');
+            Logger.warn('IndexedDB blocked');
+            NotificationManager.warning('Please close other app tabs and refresh');
+            reject(error);
+          };
+          
+          request.onupgradeneeded = (event) => {
+            try {
+              const db = event.target.result;
+              
+              // Create object stores
+              if (!db.objectStoreNames.contains('messages')) {
+                const msgStore = db.createObjectStore('messages', { keyPath: 'id' });
+                msgStore.createIndex('room', 'room', { unique: false });
+                msgStore.createIndex('timestamp', 'timestamp', { unique: false });
+              }
+              
+              if (!db.objectStoreNames.contains('outbox')) {
+                db.createObjectStore('outbox', { keyPath: 'id' });
+              }
+              
+              if (!db.objectStoreNames.contains('contacts')) {
+                db.createObjectStore('contacts', { keyPath: 'serial' });
+              }
+              
+              Logger.info('IndexedDB upgraded successfully');
+            } catch (error) {
+              Logger.error('IndexedDB upgrade failed', error);
+              reject(error);
+            }
+          };
+          
+          request.onsuccess = (event) => {
+            this.db = event.target.result;
+            
+            this.db.onversionchange = () => {
+              this.db.close();
+              NotificationManager.warning('App updated - please refresh');
+            };
+            
+            this.db.onerror = (event) => {
+              Logger.error('IndexedDB error', event.target.error);
+            };
+            
+            Logger.info('IndexedDB initialized successfully');
+            resolve(this.db);
+          };
+        } catch (error) {
+          Logger.error('IndexedDB initialization failed', error);
+          reject(error);
+        }
+      });
+    }
+    
+    async store(storeName, data) {
+      try {
+        if (!this.db) await this.init();
+        
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction([storeName], 'readwrite');
+          const store = transaction.objectStore(storeName);
+          const request = store.put(data);
+          
+          transaction.onerror = () => {
+            const error = new Error(`Failed to store data in ${storeName}`);
+            Logger.error('Storage failed', { storeName, error: transaction.error });
+            reject(error);
+          };
+          
+          request.onsuccess = () => {
+            Logger.debug(`Data stored in ${storeName}`, data.id);
+            resolve(request.result);
+          };
+        });
+      } catch (error) {
+        Logger.error('Store operation failed', error);
+        throw error;
+      }
+    }
+    
+    async get(storeName, key) {
+      try {
+        if (!this.db) await this.init();
+        
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction([storeName], 'readonly');
+          const store = transaction.objectStore(storeName);
+          const request = store.get(key);
+          
+          transaction.onerror = () => {
+            const error = new Error(`Failed to get data from ${storeName}`);
+            Logger.error('Retrieval failed', { storeName, key, error: transaction.error });
+            reject(error);
+          };
+          
+          request.onsuccess = () => {
+            resolve(request.result);
+          };
+        });
+      } catch (error) {
+        Logger.error('Get operation failed', error);
+        throw error;
+      }
+    }
+    
+    async getAll(storeName) {
+      try {
+        if (!this.db) await this.init();
+        
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction([storeName], 'readonly');
+          const store = transaction.objectStore(storeName);
+          const request = store.getAll();
+          
+          transaction.onerror = () => {
+            const error = new Error(`Failed to get all data from ${storeName}`);
+            Logger.error('GetAll failed', { storeName, error: transaction.error });
+            reject(error);
+          };
+          
+          request.onsuccess = () => {
+            resolve(request.result || []);
+          };
+        });
+      } catch (error) {
+        Logger.error('GetAll operation failed', error);
+        throw error;
+      }
+    }
+    
+    async delete(storeName, key) {
+      try {
+        if (!this.db) await this.init();
+        
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction([storeName], 'readwrite');
+          const store = transaction.objectStore(storeName);
+          const request = store.delete(key);
+          
+          transaction.onerror = () => {
+            const error = new Error(`Failed to delete data from ${storeName}`);
+            Logger.error('Delete failed', { storeName, key, error: transaction.error });
+            reject(error);
+          };
+          
+          request.onsuccess = () => {
+            Logger.debug(`Data deleted from ${storeName}`, key);
+            resolve();
+          };
+        });
+      } catch (error) {
+        Logger.error('Delete operation failed', error);
+        throw error;
+      }
+    }
+  }
+
+  // Enhanced WebRTC Connection Manager
+  class WebRTCManager {
+    constructor() {
+      this.pc = null;
+      this.dc = null;
+      this.isConnecting = false;
+      this.reconnectAttempts = 0;
+      this.maxReconnectAttempts = 5;
+      this.reconnectDelay = 1000;
+      this.onMessage = null;
+      this.onStateChange = null;
+    }
+    
+    async createConnection() {
+      try {
+        this.pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ],
+          iceCandidatePoolSize: 10
+        });
+        
+        this.pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            this.sendSignal({ type: 'ice-candidate', candidate: event.candidate });
+          }
+        };
+        
+        this.pc.onconnectionstatechange = () => {
+          Logger.info('WebRTC connection state:', this.pc.connectionState);
+          this.updateConnectionStatus(this.pc.connectionState);
+          
+          if (this.onStateChange) {
+            this.onStateChange(this.pc.connectionState);
+          }
+          
+          if (this.pc.connectionState === 'failed' || this.pc.connectionState === 'disconnected') {
+            this.handleDisconnection();
+          } else if (this.pc.connectionState === 'connected') {
+            this.reconnectAttempts = 0;
+            this.reconnectDelay = 1000;
+          }
+        };
+        
+        this.pc.ondatachannel = (event) => {
+          this.setupDataChannel(event.channel);
+        };
+        
+        Logger.info('WebRTC connection created successfully');
+        return this.pc;
+      } catch (error) {
+        Logger.error('Failed to create WebRTC connection', error);
+        throw new WebRTCError('Failed to create peer connection', error.code);
+      }
+    }
+    
+    setupDataChannel(channel) {
+      this.dc = channel;
+      
+      this.dc.onopen = () => {
+        Logger.info('Data channel opened');
+        this.updateConnectionStatus('connected');
+        this.flushOutbox();
+      };
+      
+      this.dc.onclose = () => {
+        Logger.warn('Data channel closed');
+        this.updateConnectionStatus('disconnected');
+      };
+      
+      this.dc.onerror = (error) => {
+        Logger.error('Data channel error', error);
+        this.updateConnectionStatus('failed');
+      };
+      
+      this.dc.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (this.onMessage) {
+            this.onMessage(message);
+          }
+        } catch (error) {
+          Logger.error('Failed to parse incoming message', error);
+        }
+      };
+    }
+    
+    async createOffer() {
+      try {
+        if (!this.pc) {
+          await this.createConnection();
+        }
+        
+        this.dc = this.pc.createDataChannel('chat', {
+          ordered: true
+        });
+        this.setupDataChannel(this.dc);
+        
+        const offer = await this.pc.createOffer();
+        await this.pc.setLocalDescription(offer);
+        
+        Logger.info('WebRTC offer created');
+        return offer;
+      } catch (error) {
+        Logger.error('Failed to create offer', error);
+        throw new WebRTCError('Failed to create offer', error.code);
+      }
+    }
+    
+    async handleOffer(offer) {
+      try {
+        if (!this.pc) {
+          await this.createConnection();
+        }
+        
+        await this.pc.setRemoteDescription(offer);
+        const answer = await this.pc.createAnswer();
+        await this.pc.setLocalDescription(answer);
+        
+        Logger.info('WebRTC offer handled, answer created');
+        return answer;
+      } catch (error) {
+        Logger.error('Failed to handle offer', error);
+        throw new WebRTCError('Failed to handle offer', error.code);
+      }
+    }
+    
+    async handleAnswer(answer) {
+      try {
+        await this.pc.setRemoteDescription(answer);
+        Logger.info('WebRTC answer handled');
+      } catch (error) {
+        Logger.error('Failed to handle answer', error);
+        throw new WebRTCError('Failed to handle answer', error.code);
+      }
+    }
+    
+    async handleIceCandidate(candidate) {
+      try {
+        await this.pc.addIceCandidate(candidate);
+        Logger.debug('ICE candidate added');
+      } catch (error) {
+        Logger.error('Failed to add ICE candidate', error);
+      }
+    }
+    
+    sendMessage(message) {
+      try {
+        if (this.dc && this.dc.readyState === 'open') {
+          this.dc.send(JSON.stringify(message));
+          return true;
+        } else {
+          // Queue message for later
+          this.queueMessage(message);
+          return false;
+        }
+      } catch (error) {
+        Logger.error('Failed to send message', error);
+        this.queueMessage(message);
+        return false;
+      }
+    }
+    
+    async queueMessage(message) {
+      try {
+        await storage.store('outbox', {
+          id: message.id || Date.now(),
+          data: JSON.stringify(message),
+          timestamp: Date.now()
+        });
+        Logger.info('Message queued for later delivery');
+      } catch (error) {
+        Logger.error('Failed to queue message', error);
+      }
+    }
+    
+    async flushOutbox() {
+      try {
+        const queuedMessages = await storage.getAll('outbox');
+        
+        for (const item of queuedMessages) {
+          if (this.dc && this.dc.readyState === 'open') {
+            this.dc.send(item.data);
+            await storage.delete('outbox', item.id);
+            Logger.debug('Queued message sent and removed from outbox');
+          }
+        }
+      } catch (error) {
+        Logger.error('Failed to flush outbox', error);
+      }
+    }
+    
+    handleDisconnection() {
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.reconnectAttempts++;
+        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+        
+        Logger.info(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+        this.updateConnectionStatus('reconnecting');
+        
+        setTimeout(() => {
+          this.attemptReconnection();
+        }, delay);
+      } else {
+        Logger.error('Max reconnection attempts reached');
+        this.updateConnectionStatus('failed');
+        NotificationManager.error('Connection failed. Please refresh the page.');
+      }
+    }
+    
+    async attemptReconnection() {
+      try {
+        this.updateConnectionStatus('reconnecting');
+        // Implementation depends on your signaling mechanism
+        // This would trigger the connection establishment process again
+        if (window.currentRoom) {
+          await window.joinRoom(window.currentRoom);
+        }
+      } catch (error) {
+        Logger.error('Reconnection attempt failed', error);
+        this.handleDisconnection();
+      }
+    }
+    
+    updateConnectionStatus(status) {
+      const statusEl = document.getElementById('connectionStatus');
+      const statusMap = {
+        'connecting': 'Connecting...',
+        'connected': 'Connected',
+        'disconnected': 'Disconnected',
+        'failed': 'Connection failed',
+        'reconnecting': 'Reconnecting...'
+      };
+      
+      statusEl.textContent = statusMap[status] || status;
+      statusEl.className = `status ${status}`;
+    }
+    
+    async sendSignal(signal) {
+      // This would send via your signaling server
+      // Implementation depends on your backend setup
+      try {
+        await fetch('/api/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(signal)
+        });
+      } catch (error) {
+        Logger.error('Failed to send signal', error);
+        throw new NetworkError('Signaling failed');
+      }
+    }
+    
+    close() {
+      if (this.dc) {
+        this.dc.close();
+        this.dc = null;
+      }
+      
+      if (this.pc) {
+        this.pc.close();
+        this.pc = null;
+      }
+      
+      this.updateConnectionStatus('disconnected');
+    }
+  }
+
+  // Content Moderation System
+  class ContentModerator {
+    constructor() {
+      // Basic profanity filter - in production, use a proper service
+      this.profanityList = [
+        'badword1', 'badword2', 'spam', 'scam'
+        // Add more words as needed
+      ];
+      
+      this.suspiciousPatterns = [
+        /(.)\1{4,}/g, // Repeated characters
+        /[A-Z]{5,}/g, // All caps
+        /\b(https?:\/\/[^\s]+)/g // URLs
+      ];
+    }
+    
+    moderateContent(text) {
+      const result = {
+        original: text,
+        filtered: text,
+        flags: [],
+        blocked: false
+      };
+      
+      try {
+        // Check for profanity
+        for (const word of this.profanityList) {
+          const regex = new RegExp(word, 'gi');
+          if (regex.test(text)) {
+            result.flags.push('profanity');
+            result.filtered = result.filtered.replace(regex, '*'.repeat(word.length));
+          }
+        }
+        
+        // Check for spam patterns
+        for (const pattern of this.suspiciousPatterns) {
+          if (pattern.test(text)) {
+            result.flags.push('suspicious');
+          }
+        }
+        
+        // Block if too many flags
+        if (result.flags.length >= 2) {
+          result.blocked = true;
+        }
+        
+        Logger.debug('Content moderation result', result);
+        return result;
+      } catch (error) {
+        Logger.error('Content moderation failed', error);
+        return result; // Return original on error
+      }
+    }
+    
+    async reportContent(messageId, reason, details) {
+      try {
+        await fetch('/api/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messageId,
+            reason,
+            details,
+            timestamp: Date.now(),
+            reporter: window.currentUser?.serial
+          })
+        });
+        
+        Logger.info('Content reported', { messageId, reason });
+        NotificationManager.success('Report submitted successfully');
+      } catch (error) {
+        Logger.error('Failed to submit report', error);
+        NotificationManager.error('Failed to submit report');
+      }
+    }
+  }
+
+  // Input Validation System
+  class Validator {
+    static validateUsername(username) {
+      const errors = [];
+      
+      if (!username || username.trim().length === 0) {
+        errors.push('Username is required');
+      } else if (username.length < 2) {
+        errors.push('Username must be at least 2 characters');
+      } else if (username.length > 50) {
+        errors.push('Username must be less than 50 characters');
+      } else if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        errors.push('Username can only contain letters, numbers, underscore, and dash');
+      }
+      
+      return errors;
+    }
+    
+    static validatePhone(phone) {
+      const errors = [];
+      
+      if (phone && phone.length > 0) {
+        if (!/^\+?[\d\s\-\(\)]+$/.test(phone)) {
+          errors.push('Invalid phone number format');
+        } else if (phone.replace(/\D/g, '').length < 7) {
+          errors.push('Phone number too short');
+        }
+      }
+      
+      return errors;
+    }
+    
+    static validatePassword(password) {
+      const errors = [];
+      
+      if (!password || password.length === 0) {
+        errors.push('Password is required');
+      } else if (password.length < 6) {
+        errors.push('Password must be at least 6 characters');
+      } else if (password.length > 128) {
+        errors.push('Password too long');
+      }
+      
+      return errors;
+    }
+    
+    static validateMessage(message) {
+      const errors = [];
+      
+      if (!message || message.trim().length === 0) {
+        errors.push('Message cannot be empty');
+      } else if (message.length > 1000) {
+        errors.push('Message too long (max 1000 characters)');
+      }
+      
+      return errors;
+    }
+    
+    static validateSerialCode(serial) {
+      const errors = [];
+      
+      if (!serial || serial.length === 0) {
+        errors.push('Serial code is required');
+      } else if (!/^[A-Z0-9]{10,12}$/.test(serial)) {
+        errors.push('Invalid serial code format');
+      }
+      
+      return errors;
+    }
+  }
+
+  // Main Application Class
+  class ChatApp {
+    constructor() {
+      this.currentUser = null;
+      this.currentTarget = null;
+      this.webrtc = new WebRTCManager();
+      this.moderator = new ContentModerator();
+      this.blockedUsers = new Set();
+      this.mutedUsers = new Set();
+      this.typingTimeout = null;
+      
+      this.init();
+    }
+    
+    async init() {
+      try {
+        // Initialize storage
+        window.storage = new SecureStorage();
+        await window.storage.init();
+        
+        // Load user preferences
+        await this.loadUserPreferences();
+        
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        // Setup WebRTC callbacks
+        this.webrtc.onMessage = (message) => this.handleIncomingMessage(message);
+        this.webrtc.onStateChange = (state) => this.handleConnectionStateChange(state);
+        
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+        
+        // Show auth dialog
+        this.showDialog('auth');
+        
+        Logger.info('Chat application initialized successfully');
+      } catch (error) {
+        Logger.error('Failed to initialize chat application', error);
+        NotificationManager.error('Failed to initialize application');
+      }
+    }
+    
+    setupEventListeners() {
+      // Global error handler
+      window.addEventListener('error', (event) => {
+        Logger.error('Uncaught error', {
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          error: event.error
+        });
+      });
+      
+      window.addEventListener('unhandledrejection', (event) => {
+        Logger.error('Unhandled promise rejection', event.reason);
+        event.preventDefault();
+      });
+      
+      // Auth dialog
+      document.getElementById('dlgRegister').onclick = () => this.handleRegister();
+      document.getElementById('dlgLogin').onclick = () => this.handleLogin();
+      
+      // Message input
+      const msgInput = document.getElementById('inputMsg');
+      msgInput.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          this.sendMessage();
+        }
+      };
+      
+      msgInput.oninput = () => this.handleTyping();
+      
+      // Buttons
+      document.getElementById('sendBtn').onclick = () => this.sendMessage();
+      document.getElementById('fileBtn').onclick = () => document.getElementById('fileInput').click();
+      document.getElementById('fileInput').onchange = (e) => this.handleFileUpload(e);
+      
+      // Theme toggle
+      document.getElementById('themeBtn').onclick = () => this.toggleTheme();
+      
+      // Search
+      document.getElementById('filter').oninput = (e) => this.filterSidebar(e.target.value);
+      
+      // Report dialog
+      document.getElementById('reportSubmit').onclick = () => this.submitReport();
+      document.getElementById('reportCancel').onclick = () => this.hideDialog('report');
+      
+      // Context menu
+      document.addEventListener('click', () => this.hideContextMenu());
+      
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          this.hideAllDialogs();
+          this.hideContextMenu();
+        }
+      });
+    }
+    
+    async loadUserPreferences() {
+      try {
+        const theme = localStorage.getItem('theme');
+        if (theme) {
+          document.body.setAttribute('data-theme', theme);
+        }
+        
+        const blocked = localStorage.getItem('blockedUsers');
+        if (blocked) {
+          this.blockedUsers = new Set(JSON.parse(blocked));
+        }
+        
+        const muted = localStorage.getItem('mutedUsers');
+        if (muted) {
+          this.mutedUsers = new Set(JSON.parse(muted));
+        }
+      } catch (error) {
+        Logger.error('Failed to load user preferences', error);
+      }
+    }
+    
+    async handleRegister() {
+      try {
+        this.clearFormErrors();
+        
+        const username = document.getElementById('dlgName').value.trim();
+        const phone = document.getElementById('dlgPhone').value.trim();
+        const password = document.getElementById('dlgPassword').value;
+        
+        // Validate inputs
+        const usernameErrors = Validator.validateUsername(username);
+        const phoneErrors = Validator.validatePhone(phone);
+        const passwordErrors = Validator.validatePassword(password);
+        
+        if (usernameErrors.length > 0) {
+          this.showFieldError('nameError', usernameErrors[0]);
+          return;
+        }
+        
+        if (phoneErrors.length > 0) {
+          this.showFieldError('phoneError', phoneErrors[0]);
+          return;
+        }
+        
+        if (passwordErrors.length > 0) {
+          this.showFieldError('passwordError', passwordErrors[0]);
+          return;
+        }
+        
+        // Disable button to prevent double submission
+        const registerBtn = document.getElementById('dlgRegister');
+        registerBtn.disabled = true;
+        registerBtn.textContent = 'Registering...';
+        
+        const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, phone, password })
+        });
+        
+        if (!response.ok) {
+          const error = await response.text();
+          throw new NetworkError(error, response.status);
+        }
+        
+        const result = await response.json();
+        document.getElementById('dlgSerial').value = result.serial;
+        
+        NotificationManager.success('Registration successful! Your serial code: ' + result.serial);
+        Logger.info('User registered successfully');
+        
+      } catch (error) {
+        Logger.error('Registration failed', error);
+        
+        if (error instanceof NetworkError) {
+          if (error.statusCode === 409) {
+            NotificationManager.error('Username already exists');
+          } else {
+            NotificationManager.error('Registration failed: ' + error.message);
+          }
+        } else {
+          NotificationManager.error('Registration failed');
+        }
+      } finally {
+        const registerBtn = document.getElementById('dlgRegister');
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Register';
+      }
+    }
+    
+    async handleLogin() {
+      try {
+        this.clearFormErrors();
+        
+        const serial = document.getElementById('dlgSerial').value.trim();
+        const password = document.getElementById('dlgPassword').value;
+        
+        // Validate inputs
+        const serialErrors = Validator.validateSerialCode(serial);
+        const passwordErrors = Validator.validatePassword(password);
+        
+        if (serialErrors.length > 0) {
+          NotificationManager.error(serialErrors[0]);
+          return;
+        }
+        
+        if (passwordErrors.length > 0) {
+          this.showFieldError('passwordError', passwordErrors[0]);
+          return;
+        }
+        
+        // Disable button
+        const loginBtn = document.getElementById('dlgLogin');
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Logging in...';
+        
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serial, password })
+        });
+        
+        if (!response.ok) {
+          throw new NetworkError('Login failed', response.status);
+        }
+        
+        const result = await response.json();
+        this.currentUser = { serial, ...result };
+        
+        // Store session
+        sessionStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+        
+        this.hideDialog('auth');
+        await this.initializeMainApp();
+        
+        NotificationManager.success('Login successful');
+        Logger.info('User logged in successfully');
+        
+      } catch (error) {
+        Logger.error('Login failed', error);
+        
+        if (error instanceof NetworkError && error.statusCode === 401) {
+          NotificationManager.error('Invalid credentials');
+        } else {
+          NotificationManager.error('Login failed');
+        }
+      } finally {
+        const loginBtn = document.getElementById('dlgLogin');
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+      }
+    }
+    
+    async initializeMainApp() {
+      try {
+        // Load contacts and rooms
+        await this.loadContacts();
+        await this.loadRooms();
+        
+        // Setup periodic tasks
+        this.setupPeriodicTasks();
+        
+        Logger.info('Main app initialized');
+      } catch (error) {
+        Logger.error('Failed to initialize main app', error);
+        NotificationManager.error('Failed to load app data');
+      }
+    }
+    
+    async loadContacts() {
+      try {
+        const response = await fetch('/api/contacts');
+        if (response.ok) {
+          const contacts = await response.json();
+          this.renderContacts(contacts);
+        }
+      } catch (error) {
+        Logger.error('Failed to load contacts', error);
+      }
+    }
+    
+    async loadRooms() {
+      try {
+        const response = await fetch('/api/rooms');
+        if (response.ok) {
+          const rooms = await response.json();
+          this.renderRooms(rooms);
+        }
+      } catch (error) {
+        Logger.error('Failed to load rooms', error);
+      }
+    }
+    
+    renderContacts(contacts) {
+      const container = document.getElementById('contacts');
+      container.innerHTML = '<h3>Contacts</h3>';
+      
+      contacts.forEach(contact => {
+        if (this.blockedUsers.has(contact.serial)) return;
+        
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = `
+          <div>${contact.username}</div>
+          <div class="preview">${contact.lastMessage || 'No messages'}</div>
+          <div class="context-menu" onclick="event.stopPropagation(); showContextMenu(event, '${contact.serial}')">⋮</div>
+        `;
+        
+        item.onclick = () => this.selectTarget({ type: 'contact', id: contact.serial, name: contact.username });
+        container.appendChild(item);
+      });
+    }
+    
+    renderRooms(rooms) {
+      const container = document.getElementById('rooms');
+      container.innerHTML = '<h3>Rooms</h3>';
+      
+      rooms.forEach(room => {
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = `
+          <div>${room.name}</div>
+          <div class="preview">${room.memberCount} members</div>
+        `;
+        
+        item.onclick = () => this.selectTarget({ type: 'room', id: room.id, name: room.name });
+        container.appendChild(item);
+      });
+    }
+    
+    async selectTarget(target) {
+      try {
+        this.currentTarget = target;
+        window.currentRoom = target.id;
+        
+        // Update UI
+        document.getElementById('currentTarget').textContent = 
+          target.type === 'room' ? `Room: ${target.name}` : `Chat: ${target.name}`;
+        
+        // Clear messages
+        document.getElementById('msgs').innerHTML = '';
+        
+        // Load message history
+        await this.loadMessageHistory(target.id);
+        
+        // Establish WebRTC connection
+        await this.connectToTarget(target);
+        
+        Logger.info('Target selected', target);
+      } catch (error) {
+        Logger.error('Failed to select target', error);
+        NotificationManager.error('Failed to connect to ' + target.name);
+      }
+    }
+    
+    async loadMessageHistory(targetId) {
+      try {
+        const messages = await window.storage.getAll('messages');
+        const targetMessages = messages
+          .filter(msg => msg.room === targetId)
+          .sort((a, b) => a.timestamp - b.timestamp);
+        
+        targetMessages.forEach(msg => this.renderMessage(msg, false));
+      } catch (error) {
+        Logger.error('Failed to load message history', error);
+      }
+    }
+    
+    async connectToTarget(target) {
+      try {
+        this.webrtc.updateConnectionStatus('connecting');
+        
+        const offer = await this.webrtc.createOffer();
+        
+        // Send offer via signaling server
+        await fetch('/api/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'offer',
+            target: target.id,
+            from: this.currentUser.serial,
+            data: offer
+          })
+        });
+        
+        // Start polling for answer
+        this.pollForSignals(target.id);
+        
+      } catch (error) {
+        Logger.error('Failed to connect to target', error);
+        throw error;
+      }
+    }
+    
+    async pollForSignals(targetId) {
+      try {
+        const response = await fetch(`/api/signals?target=${targetId}&from=${this.currentUser.serial}`);
+        if (response.ok) {
+          const signals = await response.json();
+          
+          for (const signal of signals) {
+            await this.handleSignal(signal);
+          }
+        }
+        
+        // Continue polling if still connected
+        if (this.currentTarget && this.currentTarget.id === targetId) {
+          setTimeout(() => this.pollForSignals(targetId), 1000);
+        }
+      } catch (error) {
+        Logger.error('Signal polling failed', error);
+        
+        // Retry with exponential backoff
+        if (this.currentTarget && this.currentTarget.id === targetId) {
+          setTimeout(() => this.pollForSignals(targetId), 2000);
+        }
+      }
+    }
+    
+    async handleSignal(signal) {
+      try {
+        switch (signal.type) {
+          case 'offer':
+            const answer = await this.webrtc.handleOffer(signal.data);
+            await this.sendSignal({ type: 'answer', data: answer });
+            break;
+            
+          case 'answer':
+            await this.webrtc.handleAnswer(signal.data);
+            break;
+            
+          case 'ice-candidate':
+            await this.webrtc.handleIceCandidate(signal.data);
+            break;
+        }
+      } catch (error) {
+        Logger.error('Failed to handle signal', error);
+      }
+    }
+    
+    async sendSignal(signalData) {
+      try {
+        await fetch('/api/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...signalData,
+            target: this.currentTarget.id,
+            from: this.currentUser.serial
+          })
+        });
+      } catch (error) {
+        Logger.error('Failed to send signal', error);
+        throw error;
+      }
+    }
+    
+    async sendMessage() {
+      try {
+        const input = document.getElementById('inputMsg');
+        const text = input.value.trim();
+        
+        // Validate message
+        const errors = Validator.validateMessage(text);
+        if (errors.length > 0) {
+          NotificationManager.error(errors[0]);
+          return;
+        }
+        
+        // Moderate content
+        const modResult = this.moderator.moderateContent(text);
+        if (modResult.blocked) {
+          NotificationManager.error('Message blocked by content filter');
+          return;
+        }
+        
+        // Create message object
+        const message = {
+          id: crypto.randomUUID(),
+          type: 'text',
+          content: modResult.filtered,
+          from: this.currentUser.serial,
+          timestamp: Date.now(),
+          room: this.currentTarget.id
+        };
+        
+        // Send via WebRTC
+        const sent = this.webrtc.sendMessage(message);
+        
+        // Render locally
+        this.renderMessage(message, true);
+        
+        // Store in history
+        await window.storage.store('messages', message);
+        
+        // Clear input
+        input.value = '';
+        
+        if (!sent) {
+          NotificationManager.warning('Message queued - will send when connected');
+        }
+        
+        Logger.debug('Message sent', message.id);
+        
+      } catch (error) {
+        Logger.error('Failed to send message', error);
+        NotificationManager.error('Failed to send message');
+      }
+    }
+    
+    handleIncomingMessage(message) {
+      try {
+        // Check if user is blocked
+        if (this.blockedUsers.has(message.from)) {
+          Logger.debug('Message from blocked user ignored', message.from);
+          return;
+        }
+        
+        // Moderate content
+        const modResult = this.moderator.moderateContent(message.content);
+        if (modResult.blocked) {
+          Logger.warn('Incoming message blocked by content filter', message);
+          return;
+        }
+        
+        // Handle typing indicators
+        if (message.type === 'typing') {
+          this.showTypingIndicator(message.from);
+          return;
+        }
+        
+        // Apply content filter
+        message.content = modResult.filtered;
+        
+        // Render message
+        this.renderMessage(message, false);
+        
+        // Store in history
+        window.storage.store('messages', { ...message, room: this.currentTarget.id });
+        
+        // Show notification if page is hidden
+        if (document.hidden && !this.mutedUsers.has(message.from)) {
+          this.showNotification(message);
+        }
+        
+        Logger.debug('Message received', message.id);
+        
+      } catch (error) {
+        Logger.error('Failed to handle incoming message', error);
+      }
+    }
+    
+    renderMessage(message, isMe) {
+      try {
+        const container = document.getElementById('msgs');
+        const msgEl = document.createElement('div');
+        msgEl.className = `msg ${isMe ? 'me' : ''}`;
+        msgEl.dataset.messageId = message.id;
+        
+        const time = new Date(message.timestamp).toLocaleTimeString();
+        const sender = isMe ? 'You' : (message.fromName || message.from);
+        
+        msgEl.innerHTML = `
+          <div class="meta">${sender} • ${time}</div>
+          <div class="content">${this.escapeHtml(message.content)}</div>
+          <div class="actions">
+            <button onclick="app.showContextMenu(event, '${message.id}', 'message')" aria-label="Message options">⋮</button>
+            ${!isMe ? `<button onclick="app.reportMessage('${message.id}')" aria-label="Report message">⚠️</button>` : ''}
+          </div>
+        `;
+        
+        container.appendChild(msgEl);
+        container.scrollTop = container.scrollHeight;
+        
+      } catch (error) {
+        Logger.error('Failed to render message', error);
+      }
+    }
+    
+    showTypingIndicator(from) {
+      const indicator = document.getElementById('typing');
+      indicator.textContent = `${from} is typing...`;
+      indicator.style.display = 'block';
+      
+      clearTimeout(this.typingTimeout);
+      this.typingTimeout = setTimeout(() => {
+        indicator.style.display = 'none';
+      }, 2000);
+    }
+    
+    handleTyping() {
+      // Throttle typing indicators
+      if (this.lastTypingTime && Date.now() - this.lastTypingTime < 1000) {
+        return;
+      }
+      
+      this.lastTypingTime = Date.now();
+      
+      if (this.webrtc.dc && this.webrtc.dc.readyState === 'open') {
+        this.webrtc.sendMessage({
+          type: 'typing',
+          from: this.currentUser.serial,
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    showNotification(message) {
+      if (Notification.permission === 'granted') {
+        const notification = new Notification(`New message from ${message.from}`, {
+          body: message.content.substring(0, 100),
+          icon: '/favicon.ico',
+          tag: 'chat-message'
+        });
+        
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+        
+        setTimeout(() => notification.close(), 5000);
+      }
+    }
+    
+    reportMessage(messageId) {
+      window.reportingMessageId = messageId;
+      this.showDialog('report');
+    }
+    
+    async submitReport() {
+      try {
+        const reason = document.getElementById('reportReason').value;
+        const details = document.getElementById('reportDetails').value;
+        
+        await this.moderator.reportContent(window.reportingMessageId, reason, details);
+        
+        this.hideDialog('report');
+        
+        // Clear form
+        document.getElementById('reportDetails').value = '';
+        
+      } catch (error) {
+        Logger.error('Failed to submit report', error);
+        NotificationManager.error('Failed to submit report');
+      }
+    }
+    
+    async handleFileUpload(event) {
+      try {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Validate file
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+          NotificationManager.error('File too large (max 10MB)');
+          return;
+        }
+        
+        // Read file as data URL
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const message = {
+              id: crypto.randomUUID(),
+              type: 'file',
+              content: {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                data: e.target.result
+              },
+              from: this.currentUser.serial,
+              timestamp: Date.now(),
+              room: this.currentTarget.id
+            };
+            
+            // Send via WebRTC
+            this.webrtc.sendMessage(message);
+            
+            // Render locally
+            this.renderFileMessage(message, true);
+            
+            // Store in history
+            await window.storage.store('messages', message);
+            
+            Logger.info('File sent', { name: file.name, size: file.size });
+            
+          } catch (error) {
+            Logger.error('Failed to send file', error);
+            NotificationManager.error('Failed to send file');
+          }
+        };
+        
+        reader.onerror = () => {
+          Logger.error('Failed to read file');
+          NotificationManager.error('Failed to read file');
+        };
+        
+        reader.readAsDataURL(file);
+        
+      } catch (error) {
+        Logger.error('File upload failed', error);
+        NotificationManager.error('File upload failed');
+      } finally {
+        // Reset file input
+        event.target.value = '';
+      }
+    }
+    
+    renderFileMessage(message, isMe) {
+      try {
+        const container = document.getElementById('msgs');
+        const msgEl = document.createElement('div');
+        msgEl.className = `msg ${isMe ? 'me' : ''}`;
+        
+        const time = new Date(message.timestamp).toLocaleTimeString();
+        const sender = isMe ? 'You' : message.from;
+        const file = message.content;
+        
+        let fileContent = '';
+        if (file.type.startsWith('image/')) {
+          fileContent = `<img src="${file.data}" alt="${file.name}" style="max-width: 200px; max-height: 200px;">`;
+        } else {
+          fileContent = `<a href="${file.data}" download="${file.name}">📎 ${file.name} (${this.formatFileSize(file.size)})</a>`;
+        }
+        
+        msgEl.innerHTML = `
+          <div class="meta">${sender} • ${time}</div>
+          <div class="content">${fileContent}</div>
+        `;
+        
+        container.appendChild(msgEl);
+        container.scrollTop = container.scrollHeight;
+        
+      } catch (error) {
+        Logger.error('Failed to render file message', error);
+      }
+    }
+    
+    formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    showContextMenu(event, id, type = 'user') {
+      event.stopPropagation();
+      
+      const menu = document.getElementById('contextMenu');
+      menu.style.display = 'block';
+      menu.style.left = event.pageX + 'px';
+      menu.style.top = event.pageY + 'px';
+      
+      // Update menu based on type
+      if (type === 'message') {
+        menu.innerHTML = `
+          <button onclick="app.reportMessage('${id}')">Report Message</button>
+        `;
+      } else {
+        menu.innerHTML = `
+          <button onclick="app.blockUser('${id}')">Block User</button>
+          <button onclick="app.muteUser('${id}')">Mute User</button>
+          <button onclick="app.reportUser('${id}')">Report User</button>
+        `;
+      }
+      
+      window.contextMenuTarget = id;
+    }
+    
+    hideContextMenu() {
+      document.getElementById('contextMenu').style.display = 'none';
+    }
+    
+    blockUser(userId) {
+      this.blockedUsers.add(userId);
+      localStorage.setItem('blockedUsers', JSON.stringify([...this.blockedUsers]));
+      this.hideContextMenu();
+      NotificationManager.success('User blocked');
+      Logger.info('User blocked', userId);
+    }
+    
+    muteUser(userId) {
+      this.mutedUsers.add(userId);
+      localStorage.setItem('mutedUsers', JSON.stringify([...this.mutedUsers]));
+      this.hideContextMenu();
+      NotificationManager.success('User muted');
+      Logger.info('User muted', userId);
+    }
+    
+    toggleTheme() {
+      const current = document.body.getAttribute('data-theme');
+      const newTheme = current === 'dark' ? '' : 'dark';
+      document.body.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      
+      const btn = document.getElementById('themeBtn');
+      btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+    }
+    
+    filterSidebar(query) {
+      const items = document.querySelectorAll('.item');
+      const lowerQuery = query.toLowerCase();
+      
+      items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(lowerQuery) ? 'block' : 'none';
+      });
+    }
+    
+    showDialog(name) {
+      document.getElementById(name + 'Dialog').style.display = 'flex';
+    }
+    
+    hideDialog(name) {
+      document.getElementById(name + 'Dialog').style.display = 'none';
+    }
+    
+    hideAllDialogs() {
+      document.querySelectorAll('.dialog-overlay').forEach(dialog => {
+        dialog.style.display = 'none';
+      });
+    }
+    
+    showFieldError(fieldId, message) {
+      const errorEl = document.getElementById(fieldId);
+      if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.parentElement.classList.add('error');
+      }
+    }
+    
+    clearFormErrors() {
+      document.querySelectorAll('.error-text').forEach(el => el.textContent = '');
+      document.querySelectorAll('.form-group.error').forEach(el => el.classList.remove('error'));
+    }
+    
+    setupPeriodicTasks() {
+      // Cleanup old messages periodically
+      setInterval(async () => {
+        try {
+          const messages = await window.storage.getAll('messages');
+          const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+          
+          for (const msg of messages) {
+            if (msg.timestamp < weekAgo) {
+              await window.storage.delete('messages', msg.id);
+            }
+          }
+        } catch (error) {
+          Logger.error('Cleanup failed', error);
+        }
+      }, 60 * 60 * 1000); // Every hour
+      
+      // Connection health check
+      setInterval(() => {
+        if (this.webrtc.pc && this.webrtc.pc.connectionState === 'connected') {
+          // Send ping
+          this.webrtc.sendMessage({ type: 'ping', timestamp: Date.now() });
+        }
+      }, 30000); // Every 30 seconds
+    }
+    
+    handleConnectionStateChange(state) {
+      switch (state) {
+        case 'connected':
+          document.getElementById('status').style.display = 'none';
+          break;
+        case 'connecting':
+          this.showStatus('Connecting...', 'warning');
+          break;
+        case 'disconnected':
+          this.showStatus('Disconnected - attempting to reconnect', 'error');
+          break;
+        case 'failed':
+          this.showStatus('Connection failed', 'error');
+          break;
+      }
+    }
+    
+    showStatus(message, type) {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = type;
+      statusEl.style.display = 'block';
+    }
+    
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  }
+
+  // Initialize app when DOM is loaded
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      window.app = new ChatApp();
+      
+      // Global functions for event handlers
+      window.showContextMenu = (event, id, type) => window.app.showContextMenu(event, id, type);
+      
+    } catch (error) {
+      console.error('Failed to initialize chat app:', error);
+      alert('Failed to initialize application. Please refresh the page.');
+    }
+  });
+
+  // Service Worker Registration for Push Notifications
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then(registration => {
+        Logger.info('Service Worker registered successfully');
+        
+        // Request push notification permission
+        if ('PushManager' in window) {
+          registration.pushManager.getSubscription()
+            .then(subscription => {
+              if (!subscription) {
+                // Subscribe to push notifications
+                return registration.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: 'YOUR_VAPID_PUBLIC_KEY' // Replace with actual key
+                });
+              }
+            })
+            .then(subscription => {
+              if (subscription) {
+                // Send subscription to server
+                fetch('/api/subscribe', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(subscription)
+                });
+              }
+            })
+            .catch(error => {
+              Logger.error('Push subscription failed', error);
+            });
+        }
+      })
+      .catch(error => {
+        Logger.error('Service Worker registration failed', error);
+      });
+  }
+  </script>
+</body>
+</html>
