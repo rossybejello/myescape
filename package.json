@@ -2,7 +2,7 @@
   "name": "p2p-chat-vercel",
   "version": "1.0.0",
   "description": "Secure P2P Chat Application with Vercel",
-  "main": "index.js",
+  "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
     "build": "echo 'No build step needed'",
